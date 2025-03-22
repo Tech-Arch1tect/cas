@@ -3,7 +3,7 @@ module cas
 go 1.24.0
 
 require (
-	github.com/Tech-Arch1tect/config v0.0.0-20250322110023-09ecebcb98c9
+	github.com/Tech-Arch1tect/config v0.2.1
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/sqlite v1.5.7
 	gorm.io/gorm v1.25.12

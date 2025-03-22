@@ -1,7 +1,7 @@
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
-github.com/Tech-Arch1tect/config v0.0.0-20250322110023-09ecebcb98c9 h1:7qo5EX8Jtd8667rzxklgcN8VawzYHEC2mMhwTruzdag=
-github.com/Tech-Arch1tect/config v0.0.0-20250322110023-09ecebcb98c9/go.mod h1:9YLNS21x5fnBYYNSCU6T1qTr9TYENjWgcH+GJj7Wy2c=
+github.com/Tech-Arch1tect/config v0.2.1 h1:sMf8Uivc9j4N5QJRaSRJM+J0gXlpAXaLv0lOzKcNAnQ=
+github.com/Tech-Arch1tect/config v0.2.1/go.mod h1:9YLNS21x5fnBYYNSCU6T1qTr9TYENjWgcH+GJj7Wy2c=
 github.com/go-sql-driver/mysql v1.7.0/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCJN5yJMI=
 github.com/go-sql-driver/mysql v1.9.1 h1:FrjNGn/BsJQjVRuSa8CBrM5BWA9BWoXXat3KrtSb/iI=
 github.com/go-sql-driver/mysql v1.9.1/go.mod h1:qn46aNg1333BRMNU69Lq93t8du/dwxI64Gl8i5p1WMU=
