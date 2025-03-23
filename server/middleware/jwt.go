@@ -5,13 +5,16 @@ import (
 	"cas/models"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 var identityKey = "id"
 
-func NewJwtMiddleware(cfg *config.Config) (*jwt.GinJWTMiddleware, error) {
+func NewJwtMiddleware(cfg *config.Config, db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	return jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "cas zone",
 		Key:         []byte(cfg.JwtSecret),
@@ -24,15 +27,17 @@ func NewJwtMiddleware(cfg *config.Config) (*jwt.GinJWTMiddleware, error) {
 				Password string `json:"password" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&loginVals); err != nil {
-				return "", jwt.ErrMissingLoginValues
+				return nil, jwt.ErrMissingLoginValues
 			}
-			// TODO: Replace with actual user lookup and password check
-			if loginVals.Username == "admin" && loginVals.Password == "password" {
-				return &models.User{
-					Username: loginVals.Username,
-				}, nil
+
+			var user models.User
+			if err := db.Where("username = ?", loginVals.Username).First(&user).Error; err != nil {
+				return nil, jwt.ErrFailedAuthentication
 			}
-			return nil, jwt.ErrFailedAuthentication
+			if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginVals.Password)); err != nil {
+				return nil, jwt.ErrFailedAuthentication
+			}
+			return &user, nil
 		},
 		Authorizator: func(data interface{}, c *gin.Context) bool {
 			if _, ok := data.(*models.User); ok {
