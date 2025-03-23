@@ -19,7 +19,11 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 
 	switch cfg.DBType {
 	case "sqlite":
-		db, err = gorm.Open(sqlite.Open(cfg.DBName+".db"), &gorm.Config{})
+		if cfg.DBName == ":memory:" {
+			db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		} else {
+			db, err = gorm.Open(sqlite.Open(cfg.DBName+".db"), &gorm.Config{})
+		}
 	case "mysql":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 			cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
