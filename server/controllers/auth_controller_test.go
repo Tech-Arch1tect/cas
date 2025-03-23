@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestRegisterHandler_Success(t *testing.T) {
@@ -125,4 +126,83 @@ func TestProfileHandler(t *testing.T) {
 	assert.NoError(t, err)
 	userData := body["user"].(map[string]interface{})
 	assert.Equal(t, testUser.Username, userData["Username"])
+}
+
+func TestLoginHandler_Success(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := models.User{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: string(hashedPassword),
+	}
+	if err := env.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	authController := controllers.NewAuthController(env.DB)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	loginInput := map[string]string{
+		"username": "testuser",
+		"password": "secret123",
+	}
+	jsonValue, _ := json.Marshal(loginInput)
+	req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonValue))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	token, ok := resp["token"].(string)
+	assert.True(t, ok, "token not found in response")
+	assert.NotEmpty(t, token, "token should not be empty")
+}
+
+func TestLoginHandler_Failure(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := models.User{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: string(hashedPassword),
+	}
+	if err := env.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	authController := controllers.NewAuthController(env.DB)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	loginInput := map[string]string{
+		"username": "testuser",
+		"password": "wrongpassword",
+	}
+	jsonValue, _ := json.Marshal(loginInput)
+	req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonValue))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	message, ok := resp["message"].(string)
+	assert.True(t, ok, "message not found in response")
+	assert.NotEmpty(t, message)
 }
