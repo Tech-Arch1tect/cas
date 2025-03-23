@@ -18,7 +18,18 @@ func NewRouter(cfg *config.Config, jwtMiddleware *jwt.GinJWTMiddleware, authCont
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	authController.SetupRoutes(r, jwtMiddleware)
+	pub := r.Group("/api/v1/auth")
+	{
+		pub.POST("/login", jwtMiddleware.LoginHandler)
+		pub.POST("/register", authController.RegisterHandler)
+		pub.GET("/refresh_token", jwtMiddleware.RefreshHandler)
+	}
+
+	protected := r.Group("/api/v1/auth")
+	protected.Use(jwtMiddleware.MiddlewareFunc())
+	{
+		protected.GET("/profile", authController.ProfileHandler)
+	}
 
 	return r
 }
