@@ -15,6 +15,7 @@ type Config struct {
 	DBPassword  string `env:"DB_PASSWORD" validate:"required"`
 	DBName      string `env:"DB_NAME" validate:"required"`
 	Environment string `env:"ENVIRONMENT" validate:"required,in=development|staging|production"`
+	JwtSecret   string `env:"JWT_SECRET" validate:"required,min=16"`
 }
 
 func (c *Config) SetDefaults() {

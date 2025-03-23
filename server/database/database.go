@@ -4,6 +4,8 @@ import (
 	"cas/config"
 	"fmt"
 
+	"cas/models"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -38,6 +40,5 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	// placeholder for migrations
-	return nil
+	return db.AutoMigrate(&models.User{})
 }

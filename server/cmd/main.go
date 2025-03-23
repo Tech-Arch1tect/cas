@@ -2,7 +2,9 @@ package main
 
 import (
 	"cas/config"
+	"cas/controllers"
 	"cas/database"
+	"cas/middleware"
 	"cas/router"
 	"context"
 	"log"
@@ -16,6 +18,8 @@ func main() {
 		fx.Provide(
 			config.LoadConfig,
 			database.NewDatabase,
+			middleware.NewJwtMiddleware,
+			controllers.NewAuthController,
 			router.NewRouter,
 		),
 		fx.Invoke(registerHooks),
