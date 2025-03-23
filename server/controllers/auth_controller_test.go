@@ -206,3 +206,78 @@ func TestLoginHandler_Failure(t *testing.T) {
 	assert.True(t, ok, "message not found in response")
 	assert.NotEmpty(t, message)
 }
+
+func TestProtectedEndpoint_NoToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	authController := controllers.NewAuthController(env.DB)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestProtectedEndpoint_InvalidToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	authController := controllers.NewAuthController(env.DB)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
+	req.Header.Set("Authorization", "Bearer invalidtoken")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestProtectedEndpoint_ValidToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := models.User{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: string(hashedPassword),
+	}
+	if err := env.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	authController := controllers.NewAuthController(env.DB)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	loginInput := map[string]string{
+		"username": "testuser",
+		"password": "secret123",
+	}
+	jsonValue, _ := json.Marshal(loginInput)
+	loginReq, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonValue))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginResp := httptest.NewRecorder()
+	r.ServeHTTP(loginResp, loginReq)
+
+	assert.Equal(t, http.StatusOK, loginResp.Code)
+	var loginData map[string]interface{}
+	err = json.Unmarshal(loginResp.Body.Bytes(), &loginData)
+	assert.NoError(t, err)
+	token, ok := loginData["token"].(string)
+	assert.True(t, ok, "token not found in login response")
+	assert.NotEmpty(t, token)
+
+	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var profileData map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &profileData)
+	assert.NoError(t, err)
+	userData, ok := profileData["user"].(map[string]interface{})
+	assert.True(t, ok, "user data not found in response")
+	assert.Equal(t, "testuser", userData["Username"])
+}
