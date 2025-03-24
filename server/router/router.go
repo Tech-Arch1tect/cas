@@ -22,7 +22,7 @@ func NewRouter(cfg *config.Config, jwtMiddleware *jwt.GinJWTMiddleware, authCont
 	{
 		pub.POST("/login", jwtMiddleware.LoginHandler)
 		pub.POST("/register", authController.RegisterHandler)
-		pub.GET("/refresh_token", jwtMiddleware.RefreshHandler)
+		pub.GET("/refresh_token", authController.RefreshHandlerWithCookie(jwtMiddleware))
 	}
 
 	protected := r.Group("/api/v1/auth")

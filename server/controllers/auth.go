@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"cas/config"
 	"cas/models"
 	"net/http"
+	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
@@ -11,11 +13,12 @@ import (
 )
 
 type AuthController struct {
-	DB *gorm.DB
+	DB  *gorm.DB
+	cfg *config.Config
 }
 
-func NewAuthController(db *gorm.DB) *AuthController {
-	return &AuthController{DB: db}
+func NewAuthController(db *gorm.DB, cfg *config.Config) *AuthController {
+	return &AuthController{DB: db, cfg: cfg}
 }
 
 type RegisterInput struct {
@@ -64,5 +67,28 @@ func (ac *AuthController) SetupRoutes(r *gin.Engine, jwtMiddleware *jwt.GinJWTMi
 		authGroup.POST("/register", ac.RegisterHandler)
 		authGroup.GET("/refresh_token", jwtMiddleware.RefreshHandler)
 		authGroup.GET("/profile", ac.ProfileHandler)
+	}
+}
+
+func (ac *AuthController) RefreshHandlerWithCookie(mw *jwt.GinJWTMiddleware) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, expire, err := mw.RefreshToken(c)
+		if err != nil {
+			mw.Unauthorized(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		cookie := &http.Cookie{
+			Name:     "refresh_token",
+			Value:    token,
+			Domain:   ac.cfg.CookieDomain,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   ac.cfg.CookieSecure, // secure is configurable because in dev http is used
+			SameSite: http.SameSiteNoneMode,
+			Expires:  time.Now().Add(mw.MaxRefresh),
+		}
+		http.SetCookie(c.Writer, cookie)
+		c.JSON(http.StatusOK, gin.H{"token": token, "expire": expire.Unix()})
 	}
 }

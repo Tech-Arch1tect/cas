@@ -19,15 +19,16 @@ type Env struct {
 
 func SetupTestEnv(t *testing.T) *Env {
 	cfg := &config.Config{
-		ListenPort:  "8080",
-		DBType:      "sqlite",
-		DBHost:      "localhost",
-		DBPort:      "3306",
-		DBUser:      "myapp",
-		DBPassword:  "password",
-		DBName:      ":memory:",
-		Environment: "development",
-		JwtSecret:   "testsecret123456",
+		ListenPort:   "8080",
+		DBType:       "sqlite",
+		DBHost:       "localhost",
+		DBPort:       "3306",
+		DBUser:       "myapp",
+		DBPassword:   "password",
+		DBName:       ":memory:",
+		Environment:  "development",
+		JwtSecret:    "testsecret123456",
+		CookieDomain: "localhost",
 	}
 
 	db, err := database.NewDatabase(cfg)

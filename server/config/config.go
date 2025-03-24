@@ -7,15 +7,17 @@ import (
 )
 
 type Config struct {
-	ListenPort  string `env:"LISTEN_PORT" validate:"required"`
-	DBType      string `env:"DB_TYPE" validate:"required"`
-	DBHost      string `env:"DB_HOST" validate:"required"`
-	DBPort      string `env:"DB_PORT" validate:"required"`
-	DBUser      string `env:"DB_USER" validate:"required"`
-	DBPassword  string `env:"DB_PASSWORD" validate:"required"`
-	DBName      string `env:"DB_NAME" validate:"required"`
-	Environment string `env:"ENVIRONMENT" validate:"required,in=development|staging|production"`
-	JwtSecret   string `env:"JWT_SECRET" validate:"required,min=16"`
+	ListenPort   string `env:"LISTEN_PORT" validate:"required"`
+	DBType       string `env:"DB_TYPE" validate:"required"`
+	DBHost       string `env:"DB_HOST" validate:"required"`
+	DBPort       string `env:"DB_PORT" validate:"required"`
+	DBUser       string `env:"DB_USER" validate:"required"`
+	DBPassword   string `env:"DB_PASSWORD" validate:"required"`
+	DBName       string `env:"DB_NAME" validate:"required"`
+	Environment  string `env:"ENVIRONMENT" validate:"required,in=development|staging|production"`
+	JwtSecret    string `env:"JWT_SECRET" validate:"required,min=16"`
+	CookieDomain string `env:"COOKIE_DOMAIN" validate:"required"`
+	CookieSecure bool   `env:"COOKIE_SECURE"`
 }
 
 func (c *Config) SetDefaults() {
@@ -27,6 +29,7 @@ func (c *Config) SetDefaults() {
 	c.DBPassword = "password"
 	c.DBName = "cas"
 	c.Environment = "production"
+	c.CookieSecure = true
 }
 
 func LoadConfig() *Config {

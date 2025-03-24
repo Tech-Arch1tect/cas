@@ -19,7 +19,7 @@ import (
 
 func TestRegisterHandler_Success(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	input := controllers.RegisterInput{
@@ -49,7 +49,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 
 func TestRegisterHandler_InvalidInput(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	testCases := []struct {
@@ -99,7 +99,7 @@ func TestRegisterHandler_InvalidInput(t *testing.T) {
 
 func TestProfileHandler(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 
 	testUser := models.User{
 		Username: "testuser",
@@ -143,7 +143,7 @@ func TestLoginHandler_Success(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	loginInput := map[string]string{
@@ -183,7 +183,7 @@ func TestLoginHandler_Failure(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	loginInput := map[string]string{
@@ -209,7 +209,7 @@ func TestLoginHandler_Failure(t *testing.T) {
 
 func TestProtectedEndpoint_NoToken(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
@@ -221,7 +221,7 @@ func TestProtectedEndpoint_NoToken(t *testing.T) {
 
 func TestProtectedEndpoint_InvalidToken(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
@@ -247,7 +247,7 @@ func TestProtectedEndpoint_ValidToken(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	authController := controllers.NewAuthController(env.DB)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	loginInput := map[string]string{
