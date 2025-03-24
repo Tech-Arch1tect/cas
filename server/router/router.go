@@ -3,6 +3,7 @@ package router
 import (
 	"cas/config"
 	"cas/controllers"
+	"cas/middleware"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,7 @@ func NewRouter(cfg *config.Config, jwtMiddleware *jwt.GinJWTMiddleware, authCont
 	}
 
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(gin.Logger(), gin.Recovery(), middleware.CORSMiddleware(cfg))
 
 	pub := r.Group("/api/v1/auth")
 	{
