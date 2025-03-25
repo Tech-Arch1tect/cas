@@ -15,7 +15,8 @@ type Config struct {
 	DBPassword         string `env:"DB_PASSWORD" validate:"required"`
 	DBName             string `env:"DB_NAME" validate:"required"`
 	Environment        string `env:"ENVIRONMENT" validate:"required,in=development|staging|production"`
-	JwtSecret          string `env:"JWT_SECRET" validate:"required,min=16"`
+	JwtPrivateKeyFile  string `env:"JWT_PRIVATE_KEY_FILE" validate:"required"`
+	JwtPublicKeyFile   string `env:"JWT_PUBLIC_KEY_FILE" validate:"required"`
 	CookieDomain       string `env:"COOKIE_DOMAIN" validate:"required"`
 	CookieSecure       bool   `env:"COOKIE_SECURE"`
 	CorsAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" validate:"required"`
@@ -31,6 +32,8 @@ func (c *Config) SetDefaults() {
 	c.DBName = "cas"
 	c.Environment = "production"
 	c.CookieSecure = true
+	c.JwtPrivateKeyFile = "./private.key"
+	c.JwtPublicKeyFile = "./public.key"
 }
 
 func LoadConfig() *Config {

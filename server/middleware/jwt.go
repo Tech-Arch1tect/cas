@@ -16,11 +16,13 @@ var identityKey = "id"
 
 func NewJwtMiddleware(cfg *config.Config, db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	return jwt.New(&jwt.GinJWTMiddleware{
-		Realm:       "cas zone",
-		Key:         []byte(cfg.JwtSecret),
-		Timeout:     time.Hour,
-		MaxRefresh:  time.Hour,
-		IdentityKey: identityKey,
+		Realm:            "cas zone",
+		SigningAlgorithm: "RS256",
+		PrivKeyFile:      cfg.JwtPrivateKeyFile,
+		PubKeyFile:       cfg.JwtPublicKeyFile,
+		Timeout:          time.Hour,
+		MaxRefresh:       time.Hour,
+		IdentityKey:      identityKey,
 		Authenticator: func(c *gin.Context) (interface{}, error) {
 			var loginVals struct {
 				Username string `json:"username" binding:"required"`
@@ -40,10 +42,8 @@ func NewJwtMiddleware(cfg *config.Config, db *gorm.DB) (*jwt.GinJWTMiddleware, e
 			return &user, nil
 		},
 		Authorizator: func(data interface{}, c *gin.Context) bool {
-			if _, ok := data.(*models.User); ok {
-				return true
-			}
-			return false
+			_, ok := data.(*models.User)
+			return ok
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{"message": message})
