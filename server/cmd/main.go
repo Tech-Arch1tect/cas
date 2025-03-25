@@ -13,6 +13,13 @@ import (
 	"go.uber.org/fx"
 )
 
+// @title CAS API
+// @version 1.0
+// @description API documentation for the CAS application.
+// @BasePath /api/v1
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
 func main() {
 	app := fx.New(
 		fx.Provide(

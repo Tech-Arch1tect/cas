@@ -13,12 +13,17 @@ import (
 )
 
 type AuthController struct {
-	DB  *gorm.DB
-	cfg *config.Config
+	DB            *gorm.DB
+	cfg           *config.Config
+	jwtMiddleware *jwt.GinJWTMiddleware
 }
 
-func NewAuthController(db *gorm.DB, cfg *config.Config) *AuthController {
-	return &AuthController{DB: db, cfg: cfg}
+func NewAuthController(db *gorm.DB, cfg *config.Config, jwtMiddleware *jwt.GinJWTMiddleware) *AuthController {
+	return &AuthController{
+		DB:            db,
+		cfg:           cfg,
+		jwtMiddleware: jwtMiddleware,
+	}
 }
 
 type RegisterInput struct {
@@ -27,6 +32,16 @@ type RegisterInput struct {
 	Password string `json:"password" binding:"required,min=6"`
 }
 
+// RegisterHandler godoc
+// @Summary Register a new user
+// @Description Register a new user using username, email and password.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param register body RegisterInput true "Register Input"
+// @Success 200 {object} map[string]string "Registration successful"
+// @Failure 400 {object} map[string]string "error message"
+// @Router /auth/register [post]
 func (ac *AuthController) RegisterHandler(c *gin.Context) {
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -50,6 +65,30 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Registration successful"})
 }
 
+// LoginHandler godoc
+// @Summary Log in a user
+// @Description Authenticates a user and returns a JWT token.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param login body object{username=string,password=string} true "Login credentials"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} map[string]string "error message"
+// @Router /auth/login [post]
+func (ac *AuthController) LoginHandler(c *gin.Context) {
+	// Delegate to the JWT middleware login handler
+	ac.jwtMiddleware.LoginHandler(c)
+}
+
+// ProfileHandler godoc
+// @Summary Get user profile
+// @Description Retrieve profile information of the authenticated user.
+// @Tags auth
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} map[string]string "error: User not found"
+// @Router /auth/profile [get]
 func (ac *AuthController) ProfileHandler(c *gin.Context) {
 	user, exists := c.Get("id")
 	if !exists {
@@ -59,17 +98,15 @@ func (ac *AuthController) ProfileHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
-func (ac *AuthController) SetupRoutes(r *gin.Engine, jwtMiddleware *jwt.GinJWTMiddleware) {
-	authGroup := r.Group("/api/v1/auth")
-	authGroup.Use(jwtMiddleware.MiddlewareFunc())
-	{
-		authGroup.POST("/login", jwtMiddleware.LoginHandler)
-		authGroup.POST("/register", ac.RegisterHandler)
-		authGroup.GET("/refresh_token", jwtMiddleware.RefreshHandler)
-		authGroup.GET("/profile", ac.ProfileHandler)
-	}
-}
-
+// RefreshHandlerWithCookie godoc
+// @Summary Refresh JWT token
+// @Description Refresh the JWT token and set a secure refresh cookie.
+// @Tags auth
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} map[string]string "message: error"
+// @Router /auth/refresh_token [get]
 func (ac *AuthController) RefreshHandlerWithCookie(mw *jwt.GinJWTMiddleware) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, expire, err := mw.RefreshToken(c)
@@ -84,7 +121,7 @@ func (ac *AuthController) RefreshHandlerWithCookie(mw *jwt.GinJWTMiddleware) gin
 			Domain:   ac.cfg.CookieDomain,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   ac.cfg.CookieSecure, // secure is configurable because in dev http is used
+			Secure:   ac.cfg.CookieSecure,
 			SameSite: http.SameSiteNoneMode,
 			Expires:  time.Now().Add(mw.MaxRefresh),
 		}

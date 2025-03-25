@@ -7,14 +7,17 @@ import (
 	"cas/database"
 	"cas/middleware"
 
+	"cas/controllers"
+
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"gorm.io/gorm"
 )
 
 type Env struct {
-	DB            *gorm.DB
-	Config        *config.Config
-	JwtMiddleware *jwt.GinJWTMiddleware
+	DB             *gorm.DB
+	Config         *config.Config
+	JwtMiddleware  *jwt.GinJWTMiddleware
+	AuthController *controllers.AuthController
 }
 
 func SetupTestEnv(t *testing.T) *Env {
@@ -41,9 +44,12 @@ func SetupTestEnv(t *testing.T) *Env {
 		t.Fatalf("Failed to create JWT middleware: %v", err)
 	}
 
+	authController := controllers.NewAuthController(db, cfg, jwtMiddleware)
+
 	return &Env{
-		DB:            db,
-		Config:        cfg,
-		JwtMiddleware: jwtMiddleware,
+		DB:             db,
+		Config:         cfg,
+		JwtMiddleware:  jwtMiddleware,
+		AuthController: authController,
 	}
 }
