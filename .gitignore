@@ -25,3 +25,9 @@ go.work
 
 # Key files
 *.key
+
+# client/src/client-api
+client-api/
+
+# swagger
+server/docs/
