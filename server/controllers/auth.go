@@ -41,7 +41,7 @@ type RegisterInput struct {
 // @Param register body RegisterInput true "Register Input"
 // @Success 200 {object} map[string]string "Registration successful"
 // @Failure 400 {object} map[string]string "error message"
-// @Router /auth/register [post]
+// @Router /api/v1/auth/register [post]
 func (ac *AuthController) RegisterHandler(c *gin.Context) {
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -74,7 +74,7 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 // @Param login body object{username=string,password=string} true "Login credentials"
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} map[string]string "error message"
-// @Router /auth/login [post]
+// @Router /api/v1/auth/login [post]
 func (ac *AuthController) LoginHandler(c *gin.Context) {
 	// Delegate to the JWT middleware login handler
 	ac.jwtMiddleware.LoginHandler(c)
@@ -88,7 +88,7 @@ func (ac *AuthController) LoginHandler(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} map[string]string "error: User not found"
-// @Router /auth/profile [get]
+// @Router /api/v1/auth/profile [get]
 func (ac *AuthController) ProfileHandler(c *gin.Context) {
 	user, exists := c.Get("id")
 	if !exists {
@@ -106,7 +106,7 @@ func (ac *AuthController) ProfileHandler(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} map[string]string "message: error"
-// @Router /auth/refresh_token [get]
+// @Router /api/v1/auth/refresh_token [get]
 func (ac *AuthController) RefreshHandlerWithCookie(mw *jwt.GinJWTMiddleware) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, expire, err := mw.RefreshToken(c)
