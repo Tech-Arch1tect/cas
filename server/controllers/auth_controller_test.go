@@ -19,7 +19,7 @@ import (
 
 func TestRegisterHandler_Success(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	input := controllers.RegisterInput{
@@ -49,7 +49,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 
 func TestRegisterHandler_InvalidInput(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	testCases := []struct {
@@ -99,7 +99,7 @@ func TestRegisterHandler_InvalidInput(t *testing.T) {
 
 func TestProfileHandler(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 
 	testUser := models.User{
 		Username: "testuser",
@@ -143,7 +143,7 @@ func TestLoginHandler_Success(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	loginInput := map[string]string{
@@ -163,9 +163,9 @@ func TestLoginHandler_Success(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 
-	token, ok := resp["token"].(string)
-	assert.True(t, ok, "token not found in response")
-	assert.NotEmpty(t, token, "token should not be empty")
+	accessToken, ok := resp["access_token"].(string)
+	assert.True(t, ok, "access_token not found in response")
+	assert.NotEmpty(t, accessToken, "access_token should not be empty")
 }
 
 func TestLoginHandler_Failure(t *testing.T) {
@@ -183,7 +183,7 @@ func TestLoginHandler_Failure(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	loginInput := map[string]string{
@@ -202,14 +202,14 @@ func TestLoginHandler_Failure(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	message, ok := resp["message"].(string)
-	assert.True(t, ok, "message not found in response")
-	assert.NotEmpty(t, message)
+	errMsg, ok := resp["error"].(string)
+	assert.True(t, ok, "error not found in response")
+	assert.NotEmpty(t, errMsg)
 }
 
 func TestProtectedEndpoint_NoToken(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
@@ -221,7 +221,7 @@ func TestProtectedEndpoint_NoToken(t *testing.T) {
 
 func TestProtectedEndpoint_InvalidToken(t *testing.T) {
 	env := testutils.SetupTestEnv(t)
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
@@ -247,7 +247,7 @@ func TestProtectedEndpoint_ValidToken(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	authController := controllers.NewAuthController(env.DB, env.Config, env.JwtMiddleware)
+	authController := controllers.NewAuthController(env.DB, env.Config)
 	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
 
 	loginInput := map[string]string{
@@ -264,12 +264,12 @@ func TestProtectedEndpoint_ValidToken(t *testing.T) {
 	var loginData map[string]interface{}
 	err = json.Unmarshal(loginResp.Body.Bytes(), &loginData)
 	assert.NoError(t, err)
-	token, ok := loginData["token"].(string)
-	assert.True(t, ok, "token not found in login response")
-	assert.NotEmpty(t, token)
+	accessToken, ok := loginData["access_token"].(string)
+	assert.True(t, ok, "access_token not found in login response")
+	assert.NotEmpty(t, accessToken)
 
 	req, _ := http.NewRequest("GET", "/api/v1/auth/profile", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

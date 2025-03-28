@@ -4,25 +4,26 @@ import (
 	"cas/config"
 	"cas/models"
 	"net/http"
+	"os"
 	"time"
 
-	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
+var identityKey = "id"
+
 type AuthController struct {
-	DB            *gorm.DB
-	cfg           *config.Config
-	jwtMiddleware *jwt.GinJWTMiddleware
+	DB  *gorm.DB
+	cfg *config.Config
 }
 
-func NewAuthController(db *gorm.DB, cfg *config.Config, jwtMiddleware *jwt.GinJWTMiddleware) *AuthController {
+func NewAuthController(db *gorm.DB, cfg *config.Config) *AuthController {
 	return &AuthController{
-		DB:            db,
-		cfg:           cfg,
-		jwtMiddleware: jwtMiddleware,
+		DB:  db,
+		cfg: cfg,
 	}
 }
 
@@ -76,8 +77,76 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 // @Failure 401 {object} map[string]string "error message"
 // @Router /api/v1/auth/login [post]
 func (ac *AuthController) LoginHandler(c *gin.Context) {
-	// Delegate to the JWT middleware login handler
-	ac.jwtMiddleware.LoginHandler(c)
+	var loginVals struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&loginVals); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.User
+	if err := ac.DB.Where("username = ?", loginVals.Username).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginVals.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+	accessExp := time.Now().Add(15 * time.Minute)
+	refreshExp := time.Now().Add(7 * 24 * time.Hour)
+
+	accessClaims := jwt.MapClaims{
+		identityKey: user.ID,
+		"exp":       accessExp.Unix(),
+		"iat":       time.Now().Unix(),
+		"username":  user.Username,
+		"email":     user.Email,
+	}
+	refreshClaims := jwt.MapClaims{
+		identityKey: user.ID,
+		"exp":       refreshExp.Unix(),
+		"iat":       time.Now().Unix(),
+		"type":      "refresh",
+		"username":  user.Username,
+		"email":     user.Email,
+	}
+
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodRS256, accessClaims)
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodRS256, refreshClaims)
+
+	privKeyData, err := os.ReadFile(ac.cfg.JwtPrivateKeyFile)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to read private key"})
+		return
+	}
+	privKey, err := jwt.ParseRSAPrivateKeyFromPEM(privKeyData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to parse private key"})
+		return
+	}
+
+	accessStr, err := accessToken.SignedString(privKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to sign access token"})
+		return
+	}
+	refreshStr, err := refreshToken.SignedString(privKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to sign refresh token"})
+		return
+	}
+
+	c.SetCookie("refresh_token", refreshStr, int(refreshExp.Sub(time.Now()).Seconds()), "/", ac.cfg.CookieDomain, ac.cfg.CookieSecure, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": accessStr,
+		"expires":      accessExp.Unix(),
+	})
 }
 
 // ProfileHandler godoc
@@ -107,25 +176,64 @@ func (ac *AuthController) ProfileHandler(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} map[string]string "message: error"
 // @Router /api/v1/auth/refresh_token [get]
-func (ac *AuthController) RefreshHandlerWithCookie(mw *jwt.GinJWTMiddleware) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token, expire, err := mw.RefreshToken(c)
-		if err != nil {
-			mw.Unauthorized(c, http.StatusUnauthorized, err.Error())
-			return
-		}
-
-		cookie := &http.Cookie{
-			Name:     "refresh_token",
-			Value:    token,
-			Domain:   ac.cfg.CookieDomain,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   ac.cfg.CookieSecure,
-			SameSite: http.SameSiteNoneMode,
-			Expires:  time.Now().Add(mw.MaxRefresh),
-		}
-		http.SetCookie(c.Writer, cookie)
-		c.JSON(http.StatusOK, gin.H{"token": token, "expire": expire.Unix()})
+func (ac *AuthController) RefreshHandler(c *gin.Context) {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token missing"})
+		return
 	}
+
+	pubKeyData, err := os.ReadFile(ac.cfg.JwtPublicKeyFile)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to read public key"})
+		return
+	}
+	pubKey, err := jwt.ParseRSAPublicKeyFromPEM(pubKeyData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to parse public key"})
+		return
+	}
+
+	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+		return pubKey, nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		return
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || claims["type"] != "refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+		return
+	}
+
+	accessExp := time.Now().Add(15 * time.Minute)
+	accessClaims := jwt.MapClaims{
+		identityKey: claims[identityKey],
+		"exp":       accessExp.Unix(),
+		"iat":       time.Now().Unix(),
+		"username":  claims["username"],
+		"email":     claims["email"],
+	}
+	newAccessToken := jwt.NewWithClaims(jwt.SigningMethodRS256, accessClaims)
+
+	privKeyData, err := os.ReadFile(ac.cfg.JwtPrivateKeyFile)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to read private key"})
+		return
+	}
+	privKey, err := jwt.ParseRSAPrivateKeyFromPEM(privKeyData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to parse private key"})
+		return
+	}
+	newAccessStr, err := newAccessToken.SignedString(privKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to sign new access token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": newAccessStr,
+		"expires":      accessExp.Unix(),
+	})
 }

@@ -46,18 +46,24 @@ func NewJwtMiddleware(cfg *config.Config, db *gorm.DB) (*jwt.GinJWTMiddleware, e
 			return ok
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
-			c.JSON(code, gin.H{"message": message})
+			c.JSON(code, gin.H{"error": message})
 		},
 		IdentityHandler: func(c *gin.Context) interface{} {
 			claims := jwt.ExtractClaims(c)
 			return &models.User{
-				Username: claims[identityKey].(string),
+				Model: gorm.Model{
+					ID: uint(claims[identityKey].(float64)),
+				},
+				Username: claims["username"].(string),
+				Email:    claims["email"].(string),
 			}
 		},
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if user, ok := data.(*models.User); ok {
 				return jwt.MapClaims{
-					identityKey: user.Username,
+					identityKey: user.ID,
+					"username":  user.Username,
+					"email":     user.Email,
 				}
 			}
 			return jwt.MapClaims{}
