@@ -88,7 +88,7 @@ func SetupTestEnv(t *testing.T) *Env {
 		t.Fatalf("Failed to create JWT middleware: %v", err)
 	}
 
-	authController := controllers.NewAuthController(db, cfg, jwtMiddleware)
+	authController := controllers.NewAuthController(db, cfg)
 
 	return &Env{
 		DB:             db,
