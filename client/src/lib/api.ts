@@ -1,10 +1,13 @@
 import { BaseAPI, Configuration, AuthApi } from "../client-api";
+import { customFetch } from "./customFetch";
 
-const basePath = import.meta.env.VITE_API_BASE_PATH;
+const basePath: string =
+  import.meta.env.VITE_API_BASE_PATH || "http://localhost:8080";
 
 const configuration = new Configuration({
-  basePath: basePath || "http://localhost:8080",
+  basePath,
   credentials: "include",
+  fetchApi: customFetch,
 });
 
 export const api = new BaseAPI(configuration);
