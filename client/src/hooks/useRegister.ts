@@ -13,7 +13,9 @@ export const useRegister = () => {
       username: string;
     }) => {
       return await authApi.apiV1AuthRegisterPost({
-        register: { email, password, username },
+        email,
+        password,
+        username,
       });
     },
   });

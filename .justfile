@@ -47,7 +47,7 @@ swagger-server:
 swagger-client:
   @rm -rf client-api && \
   openapi-generator-cli generate -i ../../server/docs/swagger.yaml \
-  -g typescript-fetch -o client-api && \
+  -g typescript-axios -o client-api && \
   rm openapitools.json
 
 # Generates both Swagger server documentation and TypeScript client.

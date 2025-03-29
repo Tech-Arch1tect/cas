@@ -12,10 +12,11 @@ export const useLogin = () => {
       password: string;
     }) => {
       const res = await authApi.apiV1AuthLoginPost({
-        login: { username, password },
+        username,
+        password,
       });
-      if (res.access_token) {
-        setAccessToken(res.access_token);
+      if (res.data.access_token) {
+        setAccessToken(res.data.access_token);
       }
       return res;
     },
