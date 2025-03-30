@@ -11,7 +11,8 @@ export const useUserProfile = () => {
     retry: false,
     queryFn: async () => {
       try {
-        return await authApi.apiV1AuthProfileGet();
+        const profile = await authApi.apiV1AuthProfileGet();
+        return profile.data.user;
       } catch (error) {
         throw new Error(
           (error as Error).message || "Failed to fetch user profile"
