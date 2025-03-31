@@ -30,6 +30,7 @@ func NewRouter(cfg *config.Config, jwtMiddleware *jwt.GinJWTMiddleware, authCont
 	protected.Use(jwtMiddleware.MiddlewareFunc())
 	{
 		protected.GET("/profile", authController.ProfileHandler)
+		protected.POST("/logout", authController.LogoutHandler)
 	}
 
 	return r

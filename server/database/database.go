@@ -3,6 +3,8 @@ package database
 import (
 	"cas/config"
 	"fmt"
+	"log"
+	"time"
 
 	"cas/models"
 
@@ -44,5 +46,27 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.User{})
+	return db.AutoMigrate(
+		&models.User{},
+		&models.TokenBlacklist{},
+	)
+}
+
+func CleanupExpiredTokens(db *gorm.DB) error {
+	return db.Where("expires_at <= ?", time.Now()).Delete(&models.TokenBlacklist{}).Error
+}
+
+func StartTokenCleanup(db *gorm.DB, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := CleanupExpiredTokens(db); err != nil {
+				log.Printf("Error cleaning up expired tokens: %v", err)
+			} else {
+				log.Printf("Successfully cleaned up expired tokens")
+			}
+		}
+	}()
 }

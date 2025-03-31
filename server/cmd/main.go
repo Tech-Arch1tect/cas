@@ -8,9 +8,11 @@ import (
 	"cas/router"
 	"context"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
+	"gorm.io/gorm"
 )
 
 // @title CAS API
@@ -35,7 +37,9 @@ func main() {
 	app.Run()
 }
 
-func registerHooks(lc fx.Lifecycle, r *gin.Engine, cfg *config.Config) {
+func registerHooks(lc fx.Lifecycle, r *gin.Engine, cfg *config.Config, db *gorm.DB) {
+	database.StartTokenCleanup(db, time.Hour)
+
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			go func() {

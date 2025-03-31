@@ -42,8 +42,17 @@ func NewJwtMiddleware(cfg *config.Config, db *gorm.DB) (*jwt.GinJWTMiddleware, e
 			return &user, nil
 		},
 		Authorizator: func(data interface{}, c *gin.Context) bool {
-			_, ok := data.(*models.User)
-			return ok
+			if _, ok := data.(*models.User); !ok {
+				return false
+			}
+
+			tokenString := jwt.GetToken(c)
+			var blacklistedToken models.TokenBlacklist
+			if err := db.Where("token = ? AND expires_at > ?", tokenString, time.Now()).First(&blacklistedToken).Error; err == nil {
+				return false
+			}
+
+			return true
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{"error": message})

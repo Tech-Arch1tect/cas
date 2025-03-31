@@ -3,10 +3,12 @@ package controllers
 import (
 	"cas/config"
 	"cas/models"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	jwtgin "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
@@ -183,6 +185,12 @@ func (ac *AuthController) RefreshHandler(c *gin.Context) {
 		return
 	}
 
+	var blacklistedToken models.TokenBlacklist
+	if err := ac.DB.Where("token = ?", refreshToken).First(&blacklistedToken).Error; err == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token revoked"})
+		return
+	}
+
 	pubKeyData, err := os.ReadFile(ac.cfg.JwtPublicKeyFile)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to read public key"})
@@ -235,5 +243,90 @@ func (ac *AuthController) RefreshHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": newAccessStr,
 		"expires":      accessExp.Unix(),
+	})
+}
+
+// LogoutHandler godoc
+// @Summary Log out a user
+// @Description Invalidates the current session by clearing the refresh token cookie
+// @Tags auth
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]string "message: Logout successful"
+// @Router /api/v1/auth/logout [post]
+func (ac *AuthController) LogoutHandler(c *gin.Context) {
+	accessToken := jwtgin.GetToken(c)
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		refreshToken = ""
+	}
+
+	parseToken := func(tokenString string) (expiresAt time.Time, err error) {
+		token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+		if err != nil {
+			return time.Time{}, err
+		}
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			if exp, ok := claims["exp"].(float64); ok {
+				return time.Unix(int64(exp), 0), nil
+			}
+		}
+		return time.Time{}, fmt.Errorf("invalid token claims")
+	}
+
+	if accessToken != "" {
+		expiresAt, err := parseToken(accessToken)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse access token"})
+			return
+		}
+
+		var existing models.TokenBlacklist
+		if err := ac.DB.Where("token = ?", accessToken).First(&existing).Error; err != nil {
+			if gorm.ErrRecordNotFound == err {
+				blacklistedToken := models.TokenBlacklist{
+					Token:     accessToken,
+					ExpiresAt: expiresAt,
+				}
+				if err := ac.DB.Create(&blacklistedToken).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to invalidate token"})
+					return
+				}
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check token blacklist"})
+				return
+			}
+		}
+	}
+
+	if refreshToken != "" {
+		expiresAt, err := parseToken(refreshToken)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse refresh token"})
+			return
+		}
+
+		var existing models.TokenBlacklist
+		if err := ac.DB.Where("token = ?", refreshToken).First(&existing).Error; err != nil {
+			if gorm.ErrRecordNotFound == err {
+				blacklistedToken := models.TokenBlacklist{
+					Token:     refreshToken,
+					ExpiresAt: expiresAt,
+				}
+				if err := ac.DB.Create(&blacklistedToken).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to invalidate refresh token"})
+					return
+				}
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check refresh token blacklist"})
+				return
+			}
+		}
+	}
+
+	c.SetCookie("refresh_token", "", -1, "/", ac.cfg.CookieDomain, ac.cfg.CookieSecure, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logout successful",
 	})
 }
