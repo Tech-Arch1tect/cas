@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
-	jwtgin "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
@@ -255,7 +255,8 @@ func (ac *AuthController) RefreshHandler(c *gin.Context) {
 // @Success 200 {object} map[string]string "message: Logout successful"
 // @Router /api/v1/auth/logout [post]
 func (ac *AuthController) LogoutHandler(c *gin.Context) {
-	accessToken := jwtgin.GetToken(c)
+	accessToken := c.GetHeader("Authorization")
+	accessToken = strings.TrimPrefix(accessToken, "Bearer ")
 	refreshToken, err := c.Cookie("refresh_token")
 	if err != nil {
 		refreshToken = ""
@@ -297,6 +298,9 @@ func (ac *AuthController) LogoutHandler(c *gin.Context) {
 				return
 			}
 		}
+	} else {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "No access token to invalidate"})
+		return
 	}
 
 	if refreshToken != "" {

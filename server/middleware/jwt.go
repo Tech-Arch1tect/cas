@@ -3,6 +3,7 @@ package middleware
 import (
 	"cas/config"
 	"cas/models"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -46,13 +47,17 @@ func NewJwtMiddleware(cfg *config.Config, db *gorm.DB) (*jwt.GinJWTMiddleware, e
 				return false
 			}
 
-			tokenString := jwt.GetToken(c)
-			var blacklistedToken models.TokenBlacklist
-			if err := db.Where("token = ? AND expires_at > ?", tokenString, time.Now()).First(&blacklistedToken).Error; err == nil {
+			tokenString := c.GetHeader("Authorization")
+			if tokenString == "" {
 				return false
 			}
+			tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
-			return true
+			var blacklistedToken models.TokenBlacklist
+			if err := db.Where("token = ? AND expires_at > ?", tokenString, time.Now()).First(&blacklistedToken).Error; err != nil {
+				return true
+			}
+			return false
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{"error": message})
