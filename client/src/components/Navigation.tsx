@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
 export default function Navigation() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -43,7 +43,7 @@ export default function Navigation() {
                   className="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
                   onClick={async (e) => {
                     e.preventDefault();
-                    console.log("TODO: not implemented");
+                    await logout();
                   }}
                 >
                   Sign out
@@ -115,7 +115,7 @@ export default function Navigation() {
                     className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                     onClick={async (e) => {
                       e.preventDefault();
-                      console.log("TODO: not implemented");
+                      await logout();
                       setMobileMenuOpen(false);
                     }}
                   >

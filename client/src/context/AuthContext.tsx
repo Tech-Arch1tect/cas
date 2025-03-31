@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { useLogin } from "../hooks/useLogin";
 import { useRegister } from "../hooks/useRegister";
+import { useLogout } from "../hooks/useLogout";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextType {
@@ -14,6 +15,7 @@ interface AuthContextType {
     username: string;
     password: string;
   }) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,6 +26,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { profile, isLoading } = useUserProfile();
   const loginMutation = useLogin();
   const registerMutation = useRegister();
+  const logoutMutation = useLogout();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -47,13 +50,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await queryClient.invalidateQueries({ queryKey: ["userProfile"] });
   };
 
+  const logout = async () => {
+    await logoutMutation.mutateAsync();
+    setUser(null);
+    await queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+  };
+
   if (loading) {
     return <div>Loading...</div>;
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, isAuthenticated: !!user, login, register }}
+      value={{
+        user,
+        loading,
+        isAuthenticated: !!user,
+        login,
+        register,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
