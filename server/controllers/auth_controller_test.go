@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cas/controllers"
+	"cas/database"
 	"cas/models"
 	"cas/router"
 	"cas/testutils"
@@ -462,4 +463,34 @@ func TestLogoutHandler_NoToken(t *testing.T) {
 	r.ServeHTTP(logoutResp, logoutReq)
 
 	assert.Equal(t, http.StatusUnauthorized, logoutResp.Code)
+}
+
+func TestTokenCleanup(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+
+	expiredToken := models.TokenBlacklist{
+		Token:     "expired.token.here",
+		ExpiresAt: time.Now().Add(-1 * time.Hour),
+	}
+	err := env.DB.Create(&expiredToken).Error
+	assert.NoError(t, err)
+
+	validToken := models.TokenBlacklist{
+		Token:     "valid.token.here",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+	err = env.DB.Create(&validToken).Error
+	assert.NoError(t, err)
+
+	err = database.CleanupExpiredTokens(env.DB)
+	assert.NoError(t, err)
+
+	var count int64
+	err = env.DB.Model(&models.TokenBlacklist{}).Where("token = ?", expiredToken.Token).Count(&count).Error
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+
+	err = env.DB.Model(&models.TokenBlacklist{}).Where("token = ?", validToken.Token).Count(&count).Error
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), count)
 }
