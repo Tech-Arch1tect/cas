@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"cas/controllers"
 	"cas/models"
@@ -365,4 +366,100 @@ func TestRefreshHandler_MissingRefreshToken(t *testing.T) {
 	r.ServeHTTP(refreshResp, refreshReq)
 
 	assert.Equal(t, http.StatusUnauthorized, refreshResp.Code)
+}
+
+func TestLogoutHandler_Success(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := models.User{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: string(hashedPassword),
+	}
+	if err := env.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	authController := controllers.NewAuthController(env.DB, env.Config)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	loginInput := map[string]string{
+		"username": "testuser",
+		"password": "secret123",
+	}
+	jsonValue, _ := json.Marshal(loginInput)
+	loginReq, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonValue))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginResp := httptest.NewRecorder()
+	r.ServeHTTP(loginResp, loginReq)
+
+	assert.Equal(t, http.StatusOK, loginResp.Code)
+
+	var loginData map[string]interface{}
+	err = json.Unmarshal(loginResp.Body.Bytes(), &loginData)
+	assert.NoError(t, err)
+	accessToken, ok := loginData["access_token"].(string)
+	assert.True(t, ok, "access_token not found in login response")
+	assert.NotEmpty(t, accessToken)
+
+	var refreshToken string
+	for _, cookie := range loginResp.Result().Cookies() {
+		if cookie.Name == "refresh_token" {
+			refreshToken = cookie.Value
+			break
+		}
+	}
+	assert.NotEmpty(t, refreshToken, "refresh token should be set in cookie")
+
+	logoutReq, _ := http.NewRequest("POST", "/api/v1/auth/logout", nil)
+	logoutReq.Header.Set("Authorization", "Bearer "+accessToken)
+	logoutReq.AddCookie(&http.Cookie{
+		Name:  "refresh_token",
+		Value: refreshToken,
+	})
+	logoutResp := httptest.NewRecorder()
+	r.ServeHTTP(logoutResp, logoutReq)
+
+	assert.Equal(t, http.StatusOK, logoutResp.Code)
+
+	var logoutData map[string]string
+	err = json.Unmarshal(logoutResp.Body.Bytes(), &logoutData)
+	assert.NoError(t, err)
+	assert.Equal(t, "Logout successful", logoutData["message"])
+
+	var blacklistedAccessToken models.TokenBlacklist
+	err = env.DB.Where("token = ?", accessToken).First(&blacklistedAccessToken).Error
+	assert.NoError(t, err)
+	assert.Equal(t, accessToken, blacklistedAccessToken.Token)
+
+	var blacklistedRefreshToken models.TokenBlacklist
+	err = env.DB.Where("token = ?", refreshToken).First(&blacklistedRefreshToken).Error
+	assert.NoError(t, err)
+	assert.Equal(t, refreshToken, blacklistedRefreshToken.Token)
+
+	var refreshCookie *http.Cookie
+	for _, cookie := range logoutResp.Result().Cookies() {
+		if cookie.Name == "refresh_token" {
+			refreshCookie = cookie
+			break
+		}
+	}
+	assert.NotNil(t, refreshCookie, "refresh_token cookie should be present in response")
+	assert.Equal(t, "", refreshCookie.Value, "refresh_token cookie value should be empty")
+	assert.True(t, refreshCookie.Expires.Before(time.Now()), "refresh_token cookie should be expired")
+}
+
+func TestLogoutHandler_NoToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	authController := controllers.NewAuthController(env.DB, env.Config)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	logoutReq, _ := http.NewRequest("POST", "/api/v1/auth/logout", nil)
+	logoutResp := httptest.NewRecorder()
+	r.ServeHTTP(logoutResp, logoutReq)
+
+	assert.Equal(t, http.StatusUnauthorized, logoutResp.Code)
 }
