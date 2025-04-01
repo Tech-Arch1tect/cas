@@ -281,3 +281,88 @@ func TestProtectedEndpoint_ValidToken(t *testing.T) {
 	assert.True(t, ok, "user data not found in response")
 	assert.Equal(t, "testuser", userData["Username"])
 }
+
+func TestRefreshHandler_ValidRefreshToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := models.User{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: string(hashedPassword),
+	}
+	if err := env.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	authController := controllers.NewAuthController(env.DB, env.Config)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	loginInput := map[string]string{
+		"username": "testuser",
+		"password": "secret123",
+	}
+	jsonValue, _ := json.Marshal(loginInput)
+	loginReq, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonValue))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginResp := httptest.NewRecorder()
+	r.ServeHTTP(loginResp, loginReq)
+
+	assert.Equal(t, http.StatusOK, loginResp.Code)
+
+	var refreshToken string
+	for _, cookie := range loginResp.Result().Cookies() {
+		if cookie.Name == "refresh_token" {
+			refreshToken = cookie.Value
+			break
+		}
+	}
+	assert.NotEmpty(t, refreshToken, "refresh token should be set in cookie")
+
+	refreshReq, _ := http.NewRequest("GET", "/api/v1/auth/refresh_token", nil)
+	refreshReq.AddCookie(&http.Cookie{
+		Name:  "refresh_token",
+		Value: refreshToken,
+	})
+	refreshResp := httptest.NewRecorder()
+	r.ServeHTTP(refreshResp, refreshReq)
+
+	assert.Equal(t, http.StatusOK, refreshResp.Code)
+
+	var refreshData map[string]interface{}
+	err = json.Unmarshal(refreshResp.Body.Bytes(), &refreshData)
+	assert.NoError(t, err)
+	accessToken, ok := refreshData["access_token"].(string)
+	assert.True(t, ok, "access_token not found in refresh response")
+	assert.NotEmpty(t, accessToken)
+}
+
+func TestRefreshHandler_InvalidRefreshToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	authController := controllers.NewAuthController(env.DB, env.Config)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	refreshReq, _ := http.NewRequest("GET", "/api/v1/auth/refresh_token", nil)
+	refreshReq.AddCookie(&http.Cookie{
+		Name:  "refresh_token",
+		Value: "invalid.token.here",
+	})
+	refreshResp := httptest.NewRecorder()
+	r.ServeHTTP(refreshResp, refreshReq)
+
+	assert.Equal(t, http.StatusUnauthorized, refreshResp.Code)
+}
+
+func TestRefreshHandler_MissingRefreshToken(t *testing.T) {
+	env := testutils.SetupTestEnv(t)
+	authController := controllers.NewAuthController(env.DB, env.Config)
+	r := router.NewRouter(env.Config, env.JwtMiddleware, authController)
+
+	refreshReq, _ := http.NewRequest("GET", "/api/v1/auth/refresh_token", nil)
+	refreshResp := httptest.NewRecorder()
+	r.ServeHTTP(refreshResp, refreshReq)
+
+	assert.Equal(t, http.StatusUnauthorized, refreshResp.Code)
+}
